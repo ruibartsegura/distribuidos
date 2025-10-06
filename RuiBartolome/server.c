@@ -27,7 +27,7 @@ int main (int argc, char* argv[]) {
     setbuf(stdout, NULL); // Avoid buffering
 
 
-    int size = 100; // Number of characters for the input string
+    int size = 1024; // Number of characters for the input string
     char msg_2_send[size];
     char msg_2_rcv[size];
 
@@ -71,10 +71,11 @@ int main (int argc, char* argv[]) {
         
         if (EXIT_SIGNAL) break;
         
+        // Get the input msg to send to the client
         printf("> ");
-        fgets(msg_2_send, size, stdin); // Get the input msg to send to the server
+        fgets(msg_2_send, size, stdin);
         
-        DEBUG_PRINTF("%s\n", msg_2_send);
+        printf("%s\n", msg_2_send);
         
         if (send(socketfd, msg_2_send, sizeof(msg_2_send), 0) == -1) {
             perror("Error sending msg");
