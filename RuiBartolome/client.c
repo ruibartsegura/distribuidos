@@ -58,8 +58,6 @@ int main (int argc, char* argv[]) {
         printf("> ");
         fgets(msg_2_send, size, stdin); // Get the input msg to send to the server
         
-        printf("%s\n", msg_2_send);
-        
         if (send(socketfd, msg_2_send, sizeof(msg_2_send), 0) == -1) {
             perror("Error sending msg");
             return 1;
@@ -71,9 +69,15 @@ int main (int argc, char* argv[]) {
             perror("Error sending msg");
             return 1;
         }
-        printf("+++ %s\n", msg_2_send);
-    }
+        printf("+++ %s\n", msg_2_rcv);
 
+        // Clean the buffer
+        memset(msg_2_send, 0, sizeof(msg_2_send));
+        memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
+    }
+    
+    memset(msg_2_send, 0, sizeof(msg_2_send));
+    memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
     close(socketfd);
     return 0;
 } 
