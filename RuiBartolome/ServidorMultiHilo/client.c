@@ -25,6 +25,22 @@ void handle_sigint(int sig) {
 }
 
 int main (int argc, char* argv[]) {
+    // Adjust the argument count and pointer to skip the program name
+    argc -= 1;
+    argv += 1;
+
+    if (argc != 2) {
+        errno = EINVAL; // Invalid argument
+        perror("Number of arguments incorrect");
+        return 1;
+    }
+
+    char* ip = argv[0]; 
+    char* port = argv[1]; 
+    
+    DEBUG_PRINTF("ip %s\n", ip);
+    DEBUG_PRINTF("port %s\n", port);
+    
     signal(SIGINT, handle_sigint); // Read CTRL C
     setbuf(stdout, NULL); // Avoid buffering
 
@@ -83,7 +99,7 @@ int main (int argc, char* argv[]) {
             if ((bytes == -1) && (errno == EAGAIN || errno == EWOULDBLOCK)) { // Non blocking functionality
                 continue;
             } else if ( bytes == -1) {
-                perror("Error sending msg");
+                perror("Error reciving msg");
                 return 1;
             }
             printf("+++ %s\n", msg_2_rcv);

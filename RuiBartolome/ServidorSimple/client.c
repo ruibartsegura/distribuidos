@@ -14,7 +14,7 @@
 #endif
 
 /*Global variables*/
-#define PORT 8081
+#define PORT 8080
 bool EXIT_SIGNAL = false; // Bool to exit with control
 
 void handle_sigint(int sig) {
@@ -73,7 +73,6 @@ int main (int argc, char* argv[]) {
 
         // Clean the buffer
         memset(msg_2_send, 0, sizeof(msg_2_send));
-        memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
     }
     
     memset(msg_2_send, 0, sizeof(msg_2_send));
@@ -81,15 +80,3 @@ int main (int argc, char* argv[]) {
     close(socketfd);
     return 0;
 } 
-    
-/* TODO
-Crtl C cambia variable para salir de forma controlado
-
-Uno lee y otro escribe cuidado en el codigo
-Cliente escribe primero
-
-MSG_DONTWAIT flag no bloqueante
-
-
-Conect genera IP y puerto 
-*/ 

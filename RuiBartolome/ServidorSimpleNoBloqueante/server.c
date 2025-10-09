@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #ifdef DEBUG
     #define DEBUG_PRINTF(...) printf("DEBUG: "__VA_ARGS__)
@@ -15,7 +16,7 @@
 #endif
 
 /*Global variables*/
-#define PORT 8081
+#define PORT 8080
 bool EXIT_SIGNAL = false; // Bool to exit with control
 
 
@@ -60,7 +61,7 @@ int main (int argc, char* argv[]) {
 
     // Listen
     if (listen(socketfd, 1) == -1) {
-        perror("Error binding");
+        perror("Error listen");
         return 1;
     }
     printf("Server listening…\n");
@@ -72,15 +73,28 @@ int main (int argc, char* argv[]) {
 
     // Start conversation, first recive then send
     while(!EXIT_SIGNAL) {
-        ssize_t bytes = recv(connfd, msg_2_rcv, sizeof(msg_2_rcv), MSG_DONTWAIT);
-        if ((bytes == -1) && (errno == EAGAIN || errno == EWOULDBLOCK)) { // Non blocking functionality
-            continue;
-        } else if ( bytes == -1) {
-            perror("Error sending msg");
-            return 1;
-        }
+        fd_set readmask;
+        struct timeval timeout;
+
+        FD_ZERO(&readmask); // Reset conjunto de descriptores
+        FD_SET(connfd, &readmask); // Asignamos el nuevo descriptor
+        timeout.tv_sec=0; timeout.tv_usec=000000; // Timeout de 0.5 seg.
+
+        if (select(connfd+1, &readmask, NULL, NULL, &timeout)==-1)
+            exit(-1);
         
-        printf("+++ %s\n", msg_2_rcv);
+        if (FD_ISSET(connfd, &readmask)){
+            // Flag MSG_DONTWAIT makes it non-blocking 
+            ssize_t bytes = recv(connfd, msg_2_rcv, sizeof(msg_2_rcv), MSG_DONTWAIT);
+            if ((bytes == -1) && (errno == EAGAIN || errno == EWOULDBLOCK)) { // Non blocking functionality
+                continue;
+            } else if ( bytes == -1) {
+                perror("Error reciving msg");
+                return 1;
+            }
+            printf("+++ %s\n", msg_2_rcv);
+        }
+
         if (EXIT_SIGNAL) break;
         
         // Get the input msg to send to the client
@@ -104,14 +118,3 @@ int main (int argc, char* argv[]) {
     close(socketfd);
     return 0;
 }
-
-/*
-server_addr.sin_addr.s_addr = INADDR_ANY;
-
-Socket con ip y puerto en el bind 
-
-esperar cliente
-
-
-
- */
