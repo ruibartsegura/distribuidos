@@ -75,8 +75,8 @@ int main (int argc, char* argv[]) {
             perror("Error reciving msg");
             return 1;
         }
-        
         printf("+++ %s\n", msg_2_rcv);
+
         if (EXIT_SIGNAL) break;
         
         // Get the input msg to send to the client

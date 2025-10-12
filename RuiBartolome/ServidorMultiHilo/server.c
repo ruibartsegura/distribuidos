@@ -8,6 +8,9 @@
 #include <signal.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <time.h>
+#include <stdatomic.h>
 
 #ifdef DEBUG
     #define DEBUG_PRINTF(...) printf("DEBUG: "__VA_ARGS__)
@@ -16,17 +19,58 @@
 #endif
 
 /*Global variables*/
-#define PORT 8080
-bool EXIT_SIGNAL = false; // Bool to exit with control
-
+#define SIZE 1024 // Number of characters for the input string
+atomic_int NUM_THREADS = 0; // Number of current threads
+bool EXIT_SIGNAL = false; // Control the ctrl+C
 
 void handle_sigint(int sig) {
     EXIT_SIGNAL = true;
 }
 
+// Function to generate the random wait of the server (0.5seg-2.0seg)
+float random_generator(unsigned int *seed) {
+    float min = 0.5, max = 2.0;
+    float num;
+    num = min + ((float)rand_r(seed) / RAND_MAX) * (max - min);
+    DEBUG_PRINTF("Random = %f", num);
+    return num;
+}
+
+// Function to treat each client in a thread
 void* thread_client(void *arg) {
+    atomic_fetch_add(&NUM_THREADS, 1);
     int sockfd = *((int *)arg);
     free(arg);
+
+    char msg_2_send[SIZE] = "Hello client";
+    char msg_2_rcv[SIZE];
+
+    // sleep(5);
+    
+    if (recv(sockfd, msg_2_rcv, sizeof(msg_2_rcv), 0) == -1) {
+        printf("Error reciving msg");
+        close(sockfd);
+        atomic_fetch_sub(&NUM_THREADS, 1);
+        return NULL;
+    }    
+    unsigned int seed = time(NULL) ^ pthread_self();
+    usleep((useconds_t)(random_generator(&seed) * 1000000));
+    //printf("+++ %s\n", msg_2_rcv);
+
+    if (send(sockfd, msg_2_send, sizeof(msg_2_send), 0) == -1) {
+        printf("Error sending msg");
+        close(sockfd);
+        atomic_fetch_sub(&NUM_THREADS, 1);
+        return NULL;
+    }
+
+    // Clean the buffer
+    memset(msg_2_send, 0, sizeof(msg_2_send));
+    memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
+    
+    close(sockfd);
+    atomic_fetch_sub(&NUM_THREADS, 1);
+    return NULL;
 }
 
 /*
@@ -41,27 +85,21 @@ int main (int argc, char* argv[]) {
 
     if (argc != 1) {
         errno = EINVAL; // Invalid argument
-        perror("Number of arguments incorrect");
+        printf("Number of arguments incorrect");
         return 1;
     }
 
-    char* port = argv[0]; 
+    int port = atoi(argv[0]); 
     
-    DEBUG_PRINTF("port %s\n", port);
+    DEBUG_PRINTF("port %d\n", port);
 
     signal(SIGINT, handle_sigint); // Read CTRL C
     setbuf(stdout, NULL); // Avoid buffering
-
-
-    int size = 1024; // Number of characters for the input string
-    char msg_2_send[size];
-    char msg_2_rcv[size];
-
-
+    
     // Create socket
     int socketfd = socket(AF_INET, SOCK_STREAM, 0);
     if (socketfd == -1) {
-        perror("Error creating socket");
+        printf("Error creating socket");
         return 1;
     }
     printf("Socket successfully created...\n");
@@ -70,76 +108,49 @@ int main (int argc, char* argv[]) {
     struct sockaddr_in server_addr, client;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(PORT);
-
+    server_addr.sin_port = htons(port);
+    
     const int enable = 1;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-        error("setsockopt(SO_REUSEADDR) failed");
+    if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+        printf("setsockopt(SO_REUSEADDR) failed");
 
     if (bind(socketfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-        perror("Error binding");
+        printf("Error binding");
         return 1;
     }
     printf("Socket successfully binded...\n");
-
+    
     // Listen
     if (listen(socketfd, 1) == -1) {
-        perror("Error listening");
+        printf("Error listening");
         return 1;
     }
     printf("Server listening…\n");
-
     
-    // Accept conexion
-    socklen_t len = sizeof(client);
-    int connfd = accept(socketfd, (struct sockaddr*)&client, &len);
-
-    pthread_t thread;
-    pthread_create(&thread, NULL, &thread_client, &conn_fd);
-
-    // Start conversation, first recive then send
     while(!EXIT_SIGNAL) {
-        fd_set readmask;
-        struct timeval timeout;
+        //printf("Numero threads: %d", NUM_THREADS);
+        if (NUM_THREADS < 100) {
+            // Accept conexion
+            socklen_t len = sizeof(client);
+            int connfd = accept(socketfd, (struct sockaddr*)&client, &len);
+            
+            // reserve memory connfd to avoid problems if its overwritten
+            int *connfd_ptr = malloc(sizeof(int));
+            *connfd_ptr = connfd;
+            
+            pthread_t thread;
+            pthread_create(&thread, NULL, &thread_client, connfd_ptr);
+            pthread_detach(thread);
 
-        FD_ZERO(&readmask); // Reset conjunto de descriptores
-        FD_SET(connfd, &readmask); // Asignamos el nuevo descriptor
-        timeout.tv_sec=0; timeout.tv_usec=000000; // Timeout de 0.5 seg.
-
-        if (select(connfd+1, &readmask, NULL, NULL, &timeout)==-1)
-            exit(-1);
-        if (FD_ISSET(connfd, &readmask)){
-            // Flag MSG_DONTWAIT makes it non-blocking 
-            ssize_t bytes = recv(connfd, msg_2_rcv, sizeof(msg_2_rcv), MSG_DONTWAIT);
-            if ((bytes == -1) && (errno == EAGAIN || errno == EWOULDBLOCK)) { // Non blocking functionality
-                continue;
-            } else if ( bytes == -1) {
-                perror("Error reciving msg");
-                return 1;
-            }
-            printf("+++ %s\n", msg_2_rcv);
+        } else {
+            //printf("Server capacity full");
         }
-
-        if (EXIT_SIGNAL) break;
-        
-        // Get the input msg to send to the client
-        printf("> ");
-        fgets(msg_2_send, size, stdin);
-        
-        if (send(connfd, msg_2_send, sizeof(msg_2_send), 0) == -1) {
-            perror("Error sending msg");
-            return 1;
-        }
-
-        // Clean the buffer
-        memset(msg_2_send, 0, sizeof(msg_2_send));
-        memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
-
     }
 
-    memset(msg_2_send, 0, sizeof(msg_2_send));
-    memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
-    close(connfd);
     close(socketfd);
     return 0;
 }
+
+/*Preguntar:
+- Problema si accept bloquea hasta siguiente iteracion
+*/
