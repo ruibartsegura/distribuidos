@@ -20,9 +20,11 @@
 
 /*Global variables*/
 #define SIZE 1024 // Number of characters for the input string
+#define CONECCTIONS_LIMIT 100 // Number of conecctionss allowed
 atomic_int NUM_THREADS = 0; // Number of current threads
 bool EXIT_SIGNAL = false; // Control the ctrl+C
 
+// Handle CTRL C
 void handle_sigint(int sig) {
     EXIT_SIGNAL = true;
 }
@@ -45,20 +47,27 @@ void* thread_client(void *arg) {
     char msg_2_send[SIZE] = "Hello client";
     char msg_2_rcv[SIZE];
 
-    // sleep(5);
-    
+    // Recivve msg
     if (recv(sockfd, msg_2_rcv, sizeof(msg_2_rcv), 0) == -1) {
-        printf("Error reciving msg");
+        perror("Error reciving msg");
         close(sockfd);
         atomic_fetch_sub(&NUM_THREADS, 1);
         return NULL;
-    }    
-    unsigned int seed = time(NULL) ^ pthread_self();
-    usleep((useconds_t)(random_generator(&seed) * 1000000));
-    //printf("+++ %s\n", msg_2_rcv);
+    }
 
+    // Get a seed for random thread safe
+    unsigned int seed = time(NULL) ^ pthread_self();
+    float num = random_generator(&seed); // Random value between 0.5 - 2.0
+    
+    // Sleep the random period
+    usleep((useconds_t)(num * 1000000));
+    
+    // Print recived msg
+    printf("+++ %s\n", msg_2_rcv);
+
+    // Send hello client
     if (send(sockfd, msg_2_send, sizeof(msg_2_send), 0) == -1) {
-        printf("Error sending msg");
+        perror("Error sending msg");
         close(sockfd);
         atomic_fetch_sub(&NUM_THREADS, 1);
         return NULL;
@@ -67,16 +76,17 @@ void* thread_client(void *arg) {
     // Clean the buffer
     memset(msg_2_send, 0, sizeof(msg_2_send));
     memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
-    
+
+    // Close socket and -1 num of threads
     close(sockfd);
     atomic_fetch_sub(&NUM_THREADS, 1);
     return NULL;
 }
 
 /*
-Servidor Estructura:
+Serever Structure:
 socket -> bind -> listen -> accept (se conecta client)->
-recv -> send -> close
+create thread -> recv -> send -> close
 */
 int main (int argc, char* argv[]) {
     // Adjust the argument count and pointer to skip the program name
@@ -85,65 +95,70 @@ int main (int argc, char* argv[]) {
 
     if (argc != 1) {
         errno = EINVAL; // Invalid argument
-        printf("Number of arguments incorrect");
+        perror("Number of arguments incorrect");
         return 1;
     }
 
-    int port = atoi(argv[0]); 
-    
+    int port = atoi(argv[0]);
     DEBUG_PRINTF("port %d\n", port);
 
-    signal(SIGINT, handle_sigint); // Read CTRL C
+    signal(SIGINT, handle_sigint); // Handle CTRL C
     setbuf(stdout, NULL); // Avoid buffering
     
     // Create socket
     int socketfd = socket(AF_INET, SOCK_STREAM, 0);
     if (socketfd == -1) {
-        printf("Error creating socket");
+        perror("Error creating socket");
         return 1;
     }
     printf("Socket successfully created...\n");
-    
-    // Bind socket
+
+    // Define and configure the server address structure
     struct sockaddr_in server_addr, client;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(port);
     
+    // Allow reusing the port for multiple connections
     const int enable = 1;
     if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-        printf("setsockopt(SO_REUSEADDR) failed");
+    perror("setsockopt(SO_REUSEADDR) failed");
 
+    // Bind socket
     if (bind(socketfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-        printf("Error binding");
+        perror("Error binding");
         return 1;
     }
     printf("Socket successfully binded...\n");
-    
+
     // Listen
     if (listen(socketfd, 1) == -1) {
-        printf("Error listening");
+        perror("Error listening");
         return 1;
     }
     printf("Server listening…\n");
-    
+
+    // Loop to control the conecctions
     while(!EXIT_SIGNAL) {
-        //printf("Numero threads: %d", NUM_THREADS);
-        if (NUM_THREADS < 100) {
-            // Accept conexion
-            socklen_t len = sizeof(client);
-            int connfd = accept(socketfd, (struct sockaddr*)&client, &len);
-            
-            // reserve memory connfd to avoid problems if its overwritten
+        DEBUG_PRINTF("Number threads: %d", NUM_THREADS);
+
+        // Accept conecction
+        socklen_t len = sizeof(client);
+        int connfd = accept(socketfd, (struct sockaddr*)&client, &len);
+        
+        // Check if the maximum number of connections has been reached
+        if (NUM_THREADS < CONECCTIONS_LIMIT) {
+            // Allocate memory for connfd to avoid overwriting issues
             int *connfd_ptr = malloc(sizeof(int));
             *connfd_ptr = connfd;
-            
+
             pthread_t thread;
             pthread_create(&thread, NULL, &thread_client, connfd_ptr);
             pthread_detach(thread);
 
         } else {
-            //printf("Server capacity full");
+            printf("Server capacity full, connection not accepted\n");
+            close(connfd);
         }
     }
 
