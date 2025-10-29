@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -g -I. -DDEBUG
+CFLAGS = -Wall -g -I.
 DEPS =
 
 # Regla genérica para compilar .c a .o

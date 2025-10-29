@@ -14,28 +14,25 @@
 #endif
 
 /*Global variables*/
-#define PORT 8080
+#define PORT 8080 // Port we will use
+#define SIZE 1024 // Number of characters for the input string
 bool EXIT_SIGNAL = false; // Bool to exit with control
-
 
 void handle_sigint(int sig) {
     EXIT_SIGNAL = true;
 }
 
 /*
-Servidor Estructura:
+Serever Structure:
 socket -> bind -> listen -> accept (se conecta client)->
 recv -> send -> close
 */
 int main (int argc, char* argv[]) {
-    signal(SIGINT, handle_sigint); // Read CTRL C
+    signal(SIGINT, handle_sigint); // Handle CTRL C
     setbuf(stdout, NULL); // Avoid buffering
 
-
-    int size = 1024; // Number of characters for the input string
-    char msg_2_send[size];
-    char msg_2_rcv[size];
-
+    char msg_2_send[SIZE];
+    char msg_2_rcv[SIZE];
 
     // Create socket
     int socketfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -45,12 +42,13 @@ int main (int argc, char* argv[]) {
     }
     printf("Socket successfully created...\n");
     
-    // Bind socket
+    // Define and configure the server address structure
     struct sockaddr_in server_addr, client;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(PORT);
-
+    
+    // Bind socket
     if (bind(socketfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
         perror("Error binding");
         return 1;
@@ -64,25 +62,28 @@ int main (int argc, char* argv[]) {
     }
     printf("Server listening…\n");
 
-    
-    // Accept conexion
+
+    // Accept connection
     socklen_t len = sizeof(client);
     int connfd = accept(socketfd, (struct sockaddr*)&client, &len);
 
     // Start conversation, first recive then send
     while(!EXIT_SIGNAL) {
+        // Recive msg from client
         if (recv(connfd, msg_2_rcv, sizeof(msg_2_rcv), 0) == -1) {
             perror("Error reciving msg");
             return 1;
         }
         printf("+++ %s\n", msg_2_rcv);
 
+        // Check if ctrl+C was executed
         if (EXIT_SIGNAL) break;
-        
+
         // Get the input msg to send to the client
         printf("> ");
-        fgets(msg_2_send, size, stdin);
-        
+        fgets(msg_2_send, SIZE, stdin);
+
+        // Send msg
         if (send(connfd, msg_2_send, sizeof(msg_2_send), 0) == -1) {
             perror("Error sending msg");
             return 1;
@@ -91,11 +92,13 @@ int main (int argc, char* argv[]) {
         // Clean the buffer
         memset(msg_2_send, 0, sizeof(msg_2_send));
         memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
-
     }
 
+    // Clean buffers
     memset(msg_2_send, 0, sizeof(msg_2_send));
     memset(msg_2_rcv, 0, sizeof(msg_2_rcv));
+
+    // Close sockets
     close(connfd);
     close(socketfd);
     return 0;
