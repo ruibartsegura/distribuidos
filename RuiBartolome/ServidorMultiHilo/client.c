@@ -23,7 +23,7 @@ int main (int argc, char* argv[]) {
     DEBUG_PRINTF("argc %d\n", argc);
     if (argc != 4) {
         errno = EINVAL; // Invalid argument
-        printf("Number of arguments incorrect");
+        perror("Number of arguments incorrect");
         return 1;
     }
 
@@ -43,7 +43,7 @@ int main (int argc, char* argv[]) {
     // Create socket and connect
     int socketfd = socket(AF_INET, SOCK_STREAM, 0);
     if (socketfd == -1) {
-        printf("Error creating socket");
+        perror("Error creating socket");
         return 1;
     }
     printf("Socket successfully created…\n");
@@ -58,21 +58,21 @@ int main (int argc, char* argv[]) {
     }
 
     if (connect(socketfd, (struct sockaddr*)&server_addr, sizeof(server_addr))) {
-        printf("Error connecting");
+        perror("Error connecting");
         close(socketfd);
         return 1;
     }
     printf("connected to the server...\n");
 
     if (send(socketfd, msg_2_send, strlen(msg_2_send), 0) == -1) {
-        printf("Error sending msg");
+        perror("Error sending msg");
         close(socketfd);
         return 1;
     }
     
     ssize_t bytes = recv(socketfd, msg_2_rcv, sizeof(msg_2_rcv) - 1, 0);
     if (bytes <= 0) {
-        printf("Error receiving msg");
+        perror("Error receiving msg");
         close(socketfd);
         return 1;
     }

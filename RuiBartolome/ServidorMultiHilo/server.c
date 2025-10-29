@@ -45,20 +45,21 @@ void* thread_client(void *arg) {
     char msg_2_send[SIZE] = "Hello client";
     char msg_2_rcv[SIZE];
 
-    // sleep(5);
-    
     if (recv(sockfd, msg_2_rcv, sizeof(msg_2_rcv), 0) == -1) {
-        printf("Error reciving msg");
+        perror("Error reciving msg");
         close(sockfd);
         atomic_fetch_sub(&NUM_THREADS, 1);
         return NULL;
     }    
     unsigned int seed = time(NULL) ^ pthread_self();
-    usleep((useconds_t)(random_generator(&seed) * 1000000));
-    //printf("+++ %s\n", msg_2_rcv);
+    float num = (useconds_t)random_generator(&seed);
+    printf("RAND %f ", num);
+    usleep((num * 1000000));
+    printf("+++ %s\n", msg_2_rcv);
+
 
     if (send(sockfd, msg_2_send, sizeof(msg_2_send), 0) == -1) {
-        printf("Error sending msg");
+        perror("Error sending msg");
         close(sockfd);
         atomic_fetch_sub(&NUM_THREADS, 1);
         return NULL;
@@ -85,7 +86,7 @@ int main (int argc, char* argv[]) {
 
     if (argc != 1) {
         errno = EINVAL; // Invalid argument
-        printf("Number of arguments incorrect");
+        perror("Number of arguments incorrect");
         return 1;
     }
 
@@ -99,7 +100,7 @@ int main (int argc, char* argv[]) {
     // Create socket
     int socketfd = socket(AF_INET, SOCK_STREAM, 0);
     if (socketfd == -1) {
-        printf("Error creating socket");
+        perror("Error creating socket");
         return 1;
     }
     printf("Socket successfully created...\n");
@@ -112,17 +113,17 @@ int main (int argc, char* argv[]) {
     
     const int enable = 1;
     if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-        printf("setsockopt(SO_REUSEADDR) failed");
+        perror("setsockopt(SO_REUSEADDR) failed");
 
     if (bind(socketfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-        printf("Error binding");
+        perror("Error binding");
         return 1;
     }
     printf("Socket successfully binded...\n");
     
     // Listen
     if (listen(socketfd, 1) == -1) {
-        printf("Error listening");
+        perror("Error listening");
         return 1;
     }
     printf("Server listening…\n");
