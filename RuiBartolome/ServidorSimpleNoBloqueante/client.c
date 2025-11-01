@@ -17,7 +17,7 @@
 #endif
 
 /*Global variables*/
-#define PORT 8080
+#define PORT 8000
 #define SIZE 1024 // Number of characters for the input string
 bool EXIT_SIGNAL = false; // Bool to exit with control
 
@@ -66,7 +66,8 @@ int main (int argc, char* argv[]) {
         }
 
         // Check if ctrl+C was executed
-        if (EXIT_SIGNAL) break;
+        if (EXIT_SIGNAL)
+            break;
 
         // Non blocking structure
         fd_set readmask;

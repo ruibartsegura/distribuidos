@@ -16,7 +16,7 @@
 #endif
 
 /*Global variables*/
-#define PORT 8080
+#define PORT 8000
 #define SIZE 1024 // Number of characters for the input string
 bool EXIT_SIGNAL = false; // Bool to exit with control
 
@@ -26,7 +26,7 @@ void handle_sigint(int sig) {
 }
 
 /*
-Serever Structure:
+Server Structure:
 socket -> bind -> listen -> accept (se conecta client)-> 
 recv -> send -> close
 */
@@ -34,9 +34,8 @@ int main (int argc, char* argv[]) {
     signal(SIGINT, handle_sigint); // Read CTRL C
     setbuf(stdout, NULL); // Avoid buffering
 
-    int size = 1024; // Number of characters for the input string
-    char msg_2_send[size];
-    char msg_2_rcv[size];
+    char msg_2_send[SIZE];
+    char msg_2_rcv[SIZE];
 
     // Create socket
     int socketfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -77,30 +76,31 @@ int main (int argc, char* argv[]) {
         struct timeval timeout;
 
         FD_ZERO(&readmask); // Initialize the file descriptor set to be empty
-        FD_SET(socketfd, &readmask); // Add the server socket to the file descriptor set
-        //timeout.tv_sec=0; timeout.tv_usec=500000; // Timeout 0.5 seg.
+        FD_SET(connfd, &readmask); // Add the server socket to the file descriptor set
+        timeout.tv_sec=0; timeout.tv_usec=500000; // Timeout 0.5 seg.
 
         // Select socket
         if (select(connfd+1, &readmask, NULL, NULL, &timeout)==-1)
             exit(-1);
         if (FD_ISSET(connfd, &readmask)){
-            // Revive socket. Flag MSG_DONTWAIT makes it non-blocking 
+            // Flag MSG_DONTWAIT makes it non-blocking 
             ssize_t bytes = recv(connfd, msg_2_rcv, sizeof(msg_2_rcv), MSG_DONTWAIT);
             if ((bytes == -1) && (errno == EAGAIN || errno == EWOULDBLOCK)) { // Non blocking functionality
                 continue;
             } else if ( bytes == -1) {
-                perror("Error reciving msg");
+                perror("Error sending msg");
                 return 1;
             }
             printf("+++ %s\n", msg_2_rcv);
         }
 
         // Check if ctrl+C was executed
-        if (EXIT_SIGNAL) break;
+        if (EXIT_SIGNAL)
+            break;
 
         // Get the input msg to send to the client
         printf("> ");
-        fgets(msg_2_send, size, stdin);
+        fgets(msg_2_send, SIZE, stdin);
 
         // Send msg
         if (send(connfd, msg_2_send, sizeof(msg_2_send), 0) == -1) {

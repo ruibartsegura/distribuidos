@@ -58,6 +58,7 @@ int main (int argc, char* argv[]) {
     }
 
     // Connect socket
+    // Connect socket
     if (connect(socketfd, (struct sockaddr*)&server_addr, sizeof(server_addr))) {
         perror("Error connecting");
         close(socketfd);
@@ -87,3 +88,4 @@ int main (int argc, char* argv[]) {
     close(socketfd);
     return 0;
 }
+

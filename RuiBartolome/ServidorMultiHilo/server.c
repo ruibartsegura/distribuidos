@@ -20,7 +20,7 @@
 
 /*Global variables*/
 #define SIZE 1024 // Number of characters for the input string
-#define CONECCTIONS_LIMIT 100 // Number of conecctionss allowed
+#define CONECCTIONS_LIMIT 99 // Number of conecctionss allowed
 atomic_int NUM_THREADS = 0; // Number of current threads
 bool EXIT_SIGNAL = false; // Control the ctrl+C
 
@@ -84,7 +84,7 @@ void* thread_client(void *arg) {
 }
 
 /*
-Serever Structure:
+Server Structure:
 socket -> bind -> listen -> accept (se conecta client)->
 create thread -> recv -> send -> close
 */
@@ -132,7 +132,7 @@ int main (int argc, char* argv[]) {
     printf("Socket successfully binded...\n");
 
     // Listen
-    if (listen(socketfd, 1) == -1) {
+    if (listen(socketfd, 10000) == -1) {
         perror("Error listening");
         return 1;
     }
@@ -141,13 +141,12 @@ int main (int argc, char* argv[]) {
     // Loop to control the conecctions
     while(!EXIT_SIGNAL) {
         DEBUG_PRINTF("Number threads: %d", NUM_THREADS);
-
-        // Accept conecction
-        socklen_t len = sizeof(client);
-        int connfd = accept(socketfd, (struct sockaddr*)&client, &len);
-        
         // Check if the maximum number of connections has been reached
         if (NUM_THREADS < CONECCTIONS_LIMIT) {
+            // Accept conecction
+            socklen_t len = sizeof(client);
+            int connfd = accept(socketfd, (struct sockaddr*)&client, &len);
+
             // Allocate memory for connfd to avoid overwriting issues
             int *connfd_ptr = malloc(sizeof(int));
             *connfd_ptr = connfd;
@@ -155,17 +154,9 @@ int main (int argc, char* argv[]) {
             pthread_t thread;
             pthread_create(&thread, NULL, &thread_client, connfd_ptr);
             pthread_detach(thread);
-
-        } else {
-            printf("Server capacity full, connection not accepted\n");
-            close(connfd);
         }
     }
 
     close(socketfd);
     return 0;
 }
-
-/*Preguntar:
-- Problema si accept bloquea hasta siguiente iteracion
-*/
