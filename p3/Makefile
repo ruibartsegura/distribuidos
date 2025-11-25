@@ -1,17 +1,19 @@
 CC = gcc
-CFLAGS = -Wall -g -I. -lpthread
-DEPS =
+CFLAGS = -Wall -g -I.
+LDFLAGS = -lpthread
 
 # Regla genérica para compilar .c a .o
-%.o: %.c $(DEPS)
+%.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-# Compila ambos programas
-all: client
+# Programa final
+all: client server
 
-client: client.o
-	$(CC) -o client client.o $(CFLAGS)
+client: client.o stub.o
+	$(CC) -o client client.o stub.o $(LDFLAGS)
+	
+server: server.o stub.o
+	$(CC) -o server server.o stub.o $(LDFLAGS)
 
 clean:
 	rm -f *.o client server
-

@@ -1,15 +1,12 @@
 #include <stdio.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <stdbool.h>
-#include <signal.h>
 #include <errno.h>
-#include <sys/select.h>
 #include <stdlib.h>
 #include "stub.h"
+
 
 #ifdef DEBUG
     #define DEBUG_PRINTF(...) printf("DEBUG: "__VA_ARGS__)
@@ -18,8 +15,8 @@
 #endif
 
 /*Global variables*/
-char p1[20] = "P1";
 char p2[20] = "P2";
+char p3[20] = "P3";
 
 int main (int argc, char* argv[]) {
     // Adjust the argument count and pointer to skip the program name
@@ -35,8 +32,8 @@ int main (int argc, char* argv[]) {
     char* ip = argv[0];
     int port = atoi(argv[1]);
 
-    // Connect P1 -> P2
-    if (join_network(ip, port, p1, p2) == EXIT_FAILURE) {
+    // Connect P3 -> P2
+    if (join_network(ip, port, p3, p2) == EXIT_FAILURE) {
         perror("Conexion to the network failed");
         return EXIT_FAILURE;
     }
@@ -58,7 +55,7 @@ int main (int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    while (get_clock_lamport() != 5) {
+    while (get_clock_lamport() != 9) {
         usleep(10000);
         continue;
     }
@@ -69,6 +66,7 @@ int main (int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Close
     close_everything();
     return EXIT_SUCCESS;
 }

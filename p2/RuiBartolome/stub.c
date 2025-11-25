@@ -5,7 +5,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <stdbool.h>
-#include <signal.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -81,7 +80,7 @@ void* thread_reciver(void *arg) {
             // If the fd already exists but has a different name, we update it.
             // This happens because when the server first creates the client fd,
             // it doesn’t yet know the client's name, so it’s initially assigned
-            // the server process name by default.
+            // the server process name by default. Or the order of incoming msg is wrong
             strcpy(server_sockets_name[x], msg_2_rcv.origin);
             continue;
         }
@@ -230,6 +229,7 @@ int join_network(const char* ip, const int port, const char proc_id[20], const c
         return EXIT_FAILURE;
     }
 
+    // Add the socket to the list of them
     server_sockets_fd[0] = client_socket;
     strcpy(server_sockets_name[0], hoster_id);
 

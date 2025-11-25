@@ -1,13 +1,9 @@
 #include <stdio.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <stdbool.h>
-#include <signal.h>
 #include <errno.h>
-#include <sys/select.h>
 #include <stdlib.h>
 #include "stub.h"
 
