@@ -37,14 +37,21 @@ int main (int argc, char* argv[]) {
         {"priority", required_argument, 0,  2},
         {0, 0, 0, 0}
     };
+
+    int opt, option_index = 0;
+    int port;
+
     while ((opt = getopt_long(argc, argv, "", long_options, &option_index)) != -1) {
         switch (opt) {
-            case 1: // ip
-                thread_arg.ip = optarg;
+            case 1: // port
+                port = atoi(optarg);
                 break;
 
-            case 2: // port
-                thread_arg.port = atoi(optarg);
+            case 2: // priority
+                if (strcmp(optarg, "writer") == 0)
+                    set_prio(WRITE);
+                else if (strcmp(optarg, "reader") == 0)
+                    set_prio(READ);
                 break;
         }
     }
@@ -131,6 +138,7 @@ int main (int argc, char* argv[]) {
                 return EXIT_FAILURE;
             }
         }
+        memset(thread_fd, 0, sizeof(thread_fd));
         count = 0; // Restart the counter
     }
 }

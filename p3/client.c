@@ -61,9 +61,10 @@ void* thread_client(void *arg) {
     }
     printf("connected to the server...\n");
 
+    // Sendo msg
     if (thread_arg.mode == WRITE) {
         writer(thread_arg.id, thread_arg.mode, socketfd);
-
+        
     } else if (thread_arg.mode == READ) {
         reader(thread_arg.id, thread_arg.mode, socketfd);
 
@@ -88,8 +89,13 @@ int main (int argc, char* argv[]) {
 
     int opt, option_index = 0;
 
+    // initialize program values
     struct thread_args thread_arg;
-    int threads;
+    thread_arg.ip = NULL;
+    thread_arg.port = -1;
+    thread_arg.mode = -1;
+    int threads = -1;
+
 
     while ((opt = getopt_long(argc, argv, "", long_options, &option_index)) != -1) {
         switch (opt) {
@@ -121,24 +127,42 @@ int main (int argc, char* argv[]) {
         }
     }
 
+    DEBUG_PRINTF("Ip %s\n", thread_arg.ip);
+    DEBUG_PRINTF("Port %d\n", thread_arg.port);
+    DEBUG_PRINTF("MODE %d\n", thread_arg.mode);
+    DEBUG_PRINTF("N threads %d\n", threads);
+
+    if (thread_arg.ip == NULL ||
+        thread_arg.port == -1 ||
+        thread_arg.mode == -1 ||
+        threads <= 0) {
+
+        fprintf(stderr,
+                "Use: --ip <ip> --port <puerto> --mode <reader|writer> --threads <n>\n");
+        exit(1);
+    }
 
     pthread_t thread_fd[threads]; // Will save the fd of the trhead to close everything at the end
 
     for (int id = 0; id < threads; id++) {
-        // Get the id
-        thread_arg.id = id;
+        struct thread_args* args = malloc(sizeof(struct thread_args));
+        *args = thread_arg;      // copy config (ip, port, mode)
+        args->id = id;           // assign unique id
 
         pthread_t thread;
-        int status = pthread_create(&thread, NULL, &thread_client, &thread_arg);
+        int status = pthread_create(&thread, NULL, thread_client, args);
 
-        // Check the correct creation of the thread
         if (status != 0) {
             perror("pthread_create failed");
             return EXIT_FAILURE;
         }
+        thread_fd[id] = thread;
+    }
 
-        thread_fd[id] = thread; // Add the thread fd to the list
-        }
+    // Esperar a que todos los threads terminen
+    for (int id = 0; id < threads; id++) {
+        pthread_join(thread_fd[id], NULL);
+    }
 
     return 0;
 }

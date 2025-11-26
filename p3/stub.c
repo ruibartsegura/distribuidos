@@ -10,6 +10,12 @@
 #include <pthread.h>
 #include "stub.h"
 
+#ifdef DEBUG
+    #define DEBUG_PRINTF(...) printf("DEBUG: "__VA_ARGS__)
+#else
+    #define DEBUG_PRINTF(...)
+#endif
+
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_cond_t cond_writer = PTHREAD_COND_INITIALIZER; // Cond for Writers
@@ -36,9 +42,9 @@ char* get_action_name(int act_id){
     }
 }
 
-void handler() {
+void* handler(void *arg) {
     while (1) {
-        if (strcmp(get_action_name(prio), "WRITE") == 0) {
+        if (prio == WRITE) {
             // Handle first writers one by one, if there is no writer the let pass 
             // all the readers
             if (waiting_writer > 0) {
@@ -56,12 +62,14 @@ void handler() {
             }
         }
     }
+    return NULL;
 }
 
 void* thread_writer(void *arg) {
+    DEBUG_PRINTF("ESCRITOR\n");
     // Create socket
-    struct request req_arg = *((struct request *)arg);
-    free(arg);
+    struct request req = *(struct request*)arg;  // copia el contenido
+    free(arg); 
 
     pthread_mutex_lock(&mutex);
 
@@ -81,21 +89,36 @@ void* thread_writer(void *arg) {
 }
 
 void* thread_reader(void *arg) {
-    // Create socket
-    struct request req_arg = *((struct request *)arg);
-    free(arg);
-
+    DEBUG_PRINTF("LECTOR\n");
+    struct request req = *(struct request*)arg;  // copia el contenido
+    free(arg); 
+    
     pthread_mutex_lock(&mutex);
-
+    
     waiting_reader++;
-
+    
+    DEBUG_PRINTF("Esperando\n");
     if (actives_reader == 0)
-        pthread_cond_wait(&cond_reader, &mutex);
-
+    pthread_cond_wait(&cond_reader, &mutex);
+    
     waiting_reader--;
     actives_reader++;
-
+    
     pthread_mutex_unlock(&mutex);
+    
+    // RECV
+    struct response msg_2_send;
+
+    msg_2_send.action = req;
+    msg_2_send.counter = 1;
+    msg_2_send.latency_time = 0;
+
+    // SEND
+    if (send(socket_fd, &msg_2_send, sizeof(msg_2_send), 0) == -1) {
+        perror("Error sending msg");
+        close(socket_fd);
+        return;
+    }
 
     return NULL;
 }
@@ -103,15 +126,27 @@ void* thread_reader(void *arg) {
 
 void set_prio (enum operations mode) {
     prio = mode;
+
+    // Activate handler
+    pthread_t thread;
+    int status = pthread_create(&thread, NULL, &handler, NULL);
+
+    // Check the correct creation of the thread
+    if (status != 0) {
+        perror("pthread_create failed");
+        return;
+    }
+    
 }
 
 void writer(unsigned int id, enum operations mode, int socket_fd) {
     struct request req;
+    memset(&req, 0, sizeof(req));
+
     req.action = mode;
     req.id = id;
 
-    memset(&req, 0, sizeof(req));
-
+    DEBUG_PRINTF("writer(), modo: %d\n", req.action);
     // SEND
     if (send(socket_fd, &req, sizeof(req), 0) == -1) {
         perror("Error sending msg");
@@ -119,7 +154,6 @@ void writer(unsigned int id, enum operations mode, int socket_fd) {
         return;
     }
 
-    memset(&req, 0, sizeof(req));
 
     // RECV
     struct response msg_2_rcv;
@@ -139,10 +173,12 @@ void writer(unsigned int id, enum operations mode, int socket_fd) {
 
 void reader(unsigned int id, enum operations mode, int socket_fd) {
     struct request req;
+    memset(&req, 0, sizeof(req)); // Clean posible mem
+
     req.action = mode;
     req.id = id;
 
-    memset(&req, 0, sizeof(req));
+    DEBUG_PRINTF("reader(), modo: %d\n", req.action);
 
     // SEND
     if (send(socket_fd, &req, sizeof(req), 0) == -1) {
@@ -151,8 +187,7 @@ void reader(unsigned int id, enum operations mode, int socket_fd) {
         return;
     }
 
-    memset(&req, 0, sizeof(req));
-
+    
     // RECV
     struct response msg_2_rcv;
     if (recv(socket_fd, &msg_2_rcv, sizeof(msg_2_rcv), 0) == -1) {
@@ -160,10 +195,10 @@ void reader(unsigned int id, enum operations mode, int socket_fd) {
         close(socket_fd);
         return ;
     }
-
+    
     printf("[Cliente #%d] %s, contador=%d, tiempo=%ld ns.",
-            id, get_action_name(msg_2_rcv.action), msg_2_rcv.counter,
-            msg_2_rcv.latency_time);
+        id, get_action_name(msg_2_rcv.action), msg_2_rcv.counter,
+        msg_2_rcv.latency_time);
     return;
 }
 
@@ -176,9 +211,15 @@ void reciver (int socket_fd) {
         return;
     }
 
+    DEBUG_PRINTF("reciver(), modo: %d\n", msg_2_rcv.action);
+
     if (msg_2_rcv.action == WRITE) {
+        // Copy of recived msg
+        struct request* req_copy = malloc(sizeof(struct request));
+        *req_copy = msg_2_rcv;
+        
         pthread_t thread;
-        int status = pthread_create(&thread, NULL, &thread_writer, &msg_2_rcv);
+        int status = pthread_create(&thread, NULL, &thread_writer, req_copy);
 
         // Check the correct creation of the thread
         if (status != 0) {
@@ -187,8 +228,12 @@ void reciver (int socket_fd) {
             return;
         }
     } else if (msg_2_rcv.action == READ) {
+        // Copy of recived msg
+        struct request* req_copy = malloc(sizeof(struct request));
+        *req_copy = msg_2_rcv;
+
         pthread_t thread;
-        int status = pthread_create(&thread, NULL, &thread_reader, &msg_2_rcv);
+        int status = pthread_create(&thread, NULL, &thread_reader, req_copy);
 
         // Check the correct creation of the thread
         if (status != 0) {
@@ -200,10 +245,6 @@ void reciver (int socket_fd) {
 }
 
 /*
-reciver crea un thread de writer o reader:
-    Writer -> +1 contador (CRITICO)
-           -> Escribir en server_output.txt (CRITCO)
-           -> printf T. Actual Escritor N y contador (CRITICO)
-    Reader -> Print Contador (CRITICO)
+Crear array del socket-id de canales com para responder desde thread_writer/reader
 
 */
