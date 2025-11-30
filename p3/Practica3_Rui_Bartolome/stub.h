@@ -18,11 +18,17 @@ struct response {
     long latency_time;
 };
 
-void reciver(int socket_fd);
+// Server
+void finish();
 
+void check_counter();
+void set_prio(enum operations mode);
+
+void accept_conections(int server_socket);
+
+// Client
 void writer(unsigned int id, enum operations mode, int socket_fd);
 
 void reader(unsigned int id, enum operations mode, int socket_fd);
 
-void set_prio(enum operations mode);
 #endif // STUB_H

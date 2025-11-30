@@ -28,6 +28,10 @@ struct thread_args {
 };
 
 
+void handle_sigint(int sig) {
+    finish();
+}
+
 void* thread_client(void *arg) {
     // Create socket
     struct thread_args thread_arg = *((struct thread_args *)arg);
@@ -39,7 +43,6 @@ void* thread_client(void *arg) {
         perror("Error creating socket");
         return NULL;
     }
-    printf("Socket successfully created…\n");
 
     // Define and configure the server address structure
     struct sockaddr_in server_addr;
@@ -59,7 +62,6 @@ void* thread_client(void *arg) {
         close(socketfd);
         return NULL;
     }
-    printf("connected to the server...\n");
 
     // Sendo msg
     if (thread_arg.mode == WRITE) {
@@ -77,6 +79,9 @@ void* thread_client(void *arg) {
 }
 
 int main (int argc, char* argv[]) {
+    signal(SIGINT, handle_sigint); // Handle CTRL C
+    setbuf(stdout, NULL); // Avoid buffering
+
     // Match id, ip, mode and threads
 
     static struct option long_options[] = {
@@ -126,11 +131,6 @@ int main (int argc, char* argv[]) {
                 printf("Unknown option\n");
         }
     }
-
-    DEBUG_PRINTF("Ip %s\n", thread_arg.ip);
-    DEBUG_PRINTF("Port %d\n", thread_arg.port);
-    DEBUG_PRINTF("MODE %d\n", thread_arg.mode);
-    DEBUG_PRINTF("N threads %d\n", threads);
 
     if (thread_arg.ip == NULL ||
         thread_arg.port == -1 ||

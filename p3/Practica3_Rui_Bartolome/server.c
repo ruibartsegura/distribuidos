@@ -20,17 +20,17 @@
     #define DEBUG_PRINTF(...)
 #endif
 
-#define CONECCTIONS_LIMIT 600
+bool EXIT_SIGN = false; // Bool to exit with control
 
-void* thread_client(void *arg) {
-    int sockfd = *((int *)arg);
-    free(arg);
-
-    reciver(sockfd);
-    return NULL;
+void handle_sigint(int sig) {
+    finish();
+    EXIT_SIGN = true;
 }
 
 int main (int argc, char* argv[]) {
+    signal(SIGINT, handle_sigint); // Handle CTRL C
+    setbuf(stdout, NULL); // Avoid buffering
+
     // Get params
     static struct option long_options[] = {
         {"port",    required_argument, 0,  1},
@@ -39,7 +39,8 @@ int main (int argc, char* argv[]) {
     };
 
     int opt, option_index = 0;
-    int port;
+    int port = -1;
+    bool prio_seted = false;
 
     while ((opt = getopt_long(argc, argv, "", long_options, &option_index)) != -1) {
         switch (opt) {
@@ -52,24 +53,26 @@ int main (int argc, char* argv[]) {
                     set_prio(WRITE);
                 else if (strcmp(optarg, "reader") == 0)
                     set_prio(READ);
+                prio_seted = true;
                 break;
         }
     }
 
-    DEBUG_PRINTF("port %d\n", port);
+    if (port == -1 || prio_seted == false) {
+        fprintf(stderr,
+                "Use: --port <puerto> --prio <reader|writer>\n");
+        exit(1);
+    }
 
-    setbuf(stdout, NULL); // Avoid buffering
-    
     // Create socket
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == -1) {
         perror("Error creating socket");
         return EXIT_FAILURE;
     }
-    printf("Socket successfully created...\n");
 
     // Define and configure the server address structure
-    struct sockaddr_in server_addr, client;
+    struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(port);
@@ -84,61 +87,16 @@ int main (int argc, char* argv[]) {
         perror("Error binding");
         return EXIT_FAILURE;
     }
-    printf("Socket successfully binded...\n");
 
     // Listen
     if (listen(server_socket, 10000) == -1) {
         perror("Error listening");
         return EXIT_FAILURE;
     }
-    printf("Server listening…\n");
 
-    // Store the thread_fd to close it properly
-    pthread_t thread_fd[CONECCTIONS_LIMIT];
-
-
-    // Loop to control the conecctions
-    while (true) {
-        int count = 0;
-
-        // Check if the maximum number of connections has been reached
-        while (count < CONECCTIONS_LIMIT) {
-            // Accept conecction
-            socklen_t len = sizeof(client);
-            
-            int connfd = accept(server_socket, (struct sockaddr*)&client, &len);
-            if (connfd == -1) {
-                perror("Error accepting");
-                close(server_socket);
-                return EXIT_FAILURE;
-            }
-
-            // Allocate memory for connfd to avoid overwriting issues
-            int *connfd_ptr = malloc(sizeof(int));
-            *connfd_ptr = connfd;
-
-            pthread_t thread;
-            int status = pthread_create(&thread, NULL, &thread_client, connfd_ptr);
-
-            // Check the correct creatin of the thread
-            if (status != 0) {
-                perror("pthread_create failed");
-                close(server_socket);
-                return EXIT_FAILURE;
-            }
-            
-            thread_fd[count] = thread;
-            count ++;
-        }
-
-        for (int x = 0; x < CONECCTIONS_LIMIT; x++) {
-            if ( pthread_join( thread_fd[x], NULL) != 0) {
-                perror("pthread_join failed");
-                close(server_socket);
-                return EXIT_FAILURE;
-            }
-        }
-        memset(thread_fd, 0, sizeof(thread_fd));
-        count = 0; // Restart the counter
-    }
+    // Check if there is a initial value for the counter
+    check_counter();
+    accept_conections(server_socket);
+   
+    return EXIT_SUCCESS;
 }
